@@ -1,4 +1,4 @@
 import { useLogger } from 'reactive-vscode'
-import { displayName } from './generated/meta'
+import { EXTENSION_DISPLAY_NAME } from './constants'
 
-export const logger = useLogger(displayName)
+export const logger = useLogger(EXTENSION_DISPLAY_NAME)

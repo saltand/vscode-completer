@@ -1,7 +1,8 @@
+import type { ExtensionConfig } from './types'
 import { defineConfigObject } from 'reactive-vscode'
-import * as Meta from './generated/meta'
+import { CONFIG_SECTION, DEFAULT_CONFIG } from './types'
 
-export const config = defineConfigObject<Meta.ScopedConfigKeyTypeMap>(
-  Meta.scopedConfigs.scope,
-  Meta.scopedConfigs.defaults,
+export const config = defineConfigObject<ExtensionConfig>(
+  CONFIG_SECTION,
+  DEFAULT_CONFIG,
 )
