@@ -2,7 +2,7 @@
   "publisher": "saltand",
   "name": "completions-tester",
   "displayName": "Completions Tester",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "private": false,
   "packageManager": "pnpm@10.4.1",
   "description": "Stress-test completion providers by repeatedly triggering, accepting, and rolling back suggestions.",
@@ -71,13 +71,13 @@
         {
           "command": "completions-tester.start",
           "group": "navigation@10",
-          "when": "!completionsTesterRunning && (completionsTesterShowWithoutFocus || editorTextFocus)",
+          "when": "!completionsTesterRunning",
           "tooltip": "Start completions stress loop"
         },
         {
           "command": "completions-tester.stop",
           "group": "navigation@10",
-          "when": "completionsTesterRunning && (completionsTesterShowWithoutFocus || editorTextFocus)",
+          "when": "completionsTesterRunning",
           "tooltip": "Stop completions stress loop"
         }
       ]
