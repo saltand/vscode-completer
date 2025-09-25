@@ -19,6 +19,9 @@ export class CompletionTesterRunner {
   private readonly getConfig: () => ExtensionConfig
   private readonly reportState: (running: boolean) => void
   private editor: TextEditor | undefined
+  private cycleIteration = 0
+  private cycleSnapshotText: string | undefined
+  private cycleSnapshotSelections: Selection[] | undefined
 
   constructor(getConfig: () => ExtensionConfig, reportState: (running: boolean) => void) {
     this.getConfig = () => ({ ...getConfig() })
@@ -35,6 +38,9 @@ export class CompletionTesterRunner {
 
     this.running = true
     this.seedIndex = 0
+    this.cycleIteration = 0
+    this.cycleSnapshotText = undefined
+    this.cycleSnapshotSelections = undefined
     this.abortController = new AbortController()
     this.setupUserActivityListeners()
     this.reportState(true)
@@ -77,6 +83,9 @@ export class CompletionTesterRunner {
 
     this.editor = undefined
     this.document = undefined
+    this.cycleIteration = 0
+    this.cycleSnapshotText = undefined
+    this.cycleSnapshotSelections = undefined
   }
 
   dispose() {
@@ -94,10 +103,13 @@ export class CompletionTesterRunner {
 
         signal.throwIfAborted()
 
-        const snapshotText = document.getText()
-        const snapshotSelections = editor.selections.map(cloneSelection)
+        const currentText = document.getText()
+        if (this.cycleIteration === 0) {
+          this.cycleSnapshotText = currentText
+          this.cycleSnapshotSelections = editor.selections.map(cloneSelection)
+        }
 
-        const insertionPosition = document.positionAt(snapshotText.length)
+        const insertionPosition = document.positionAt(currentText.length)
         await this.runSuppressed(() => {
           editor.selections = [new Selection(insertionPosition, insertionPosition)]
         })
@@ -127,7 +139,20 @@ export class CompletionTesterRunner {
         if (delta === 0 && shouldAttemptSuggest(config.mode))
           delta = await this.trySuggest(seededBytes, document, signal, config.suggestTimeout)
 
-        await this.restoreSnapshot(document, snapshotText, snapshotSelections, signal)
+        this.cycleIteration++
+
+        if (this.cycleIteration >= 3) {
+          const snapshotText = this.cycleSnapshotText ?? ''
+          const snapshotSelections = this.cycleSnapshotSelections ?? [new Selection(new Position(0, 0), new Position(0, 0))]
+          await this.restoreSnapshot(document, snapshotText, snapshotSelections, signal)
+          this.cycleIteration = 0
+          this.cycleSnapshotText = undefined
+          this.cycleSnapshotSelections = undefined
+        }
+        else {
+          await this.prepareNextLine(editor, signal)
+        }
+
         await sleep(config.loopDelay, signal)
       }
       catch (error) {
@@ -184,6 +209,23 @@ export class CompletionTesterRunner {
         this.editor!.selections = selections
       })
     }
+  }
+
+  private async prepareNextLine(editor: TextEditor, signal: AbortSignal) {
+    await this.runSuppressed(async () => {
+      const document = editor.document
+      const endBefore = document.positionAt(document.getText().length)
+      editor.selections = [new Selection(endBefore, endBefore)]
+      const inserted = await editor.edit((editBuilder: TextEditorEdit) => {
+        editBuilder.insert(endBefore, '\n')
+      })
+      if (!inserted)
+        throw new Error('Failed to append newline for next iteration')
+      const endAfter = document.positionAt(document.getText().length)
+      editor.selections = [new Selection(endAfter, endAfter)]
+    })
+
+    await sleep(POST_COMMIT_SETTLE_MS, signal)
   }
 
   private async waitForUserIdle(signal: AbortSignal) {
